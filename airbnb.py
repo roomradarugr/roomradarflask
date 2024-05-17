@@ -2,24 +2,29 @@ from flask import Flask, render_template, request
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+import os
 import time
+
 
 app = Flask(__name__)
 
 def obtener_datos_airbnb(consulta):
-    # Inicializa el servicio ChromeDriver
-    service = Service('/usr/bin/chromedriver')
-    service.start()
+    # Configura las opciones de Chrome para Heroku
+    chrome_options = Options()
+    chrome_options.binary_location = "/app/google-chrome"
+    chrome_options.add_argument("--headless")  # Ejecuta Chrome en modo sin cabeza
+    chrome_options.add_argument("--disable-gpu")  # Deshabilita la aceleración por GPU
+    chrome_options.add_argument("--no-sandbox")  # Desactiva el modo sandbox por seguridad
+    chrome_options.add_argument("--disable-dev-shm-usage")  # Soluciona problemas de espacio limitado en /dev/shm
 
-    # Inicializa las opciones de Chrome
-    options = Options()
-    # Aquí puedes configurar las opciones según sea necesario
-    # options.add_argument('--headless')
+    # Inicializa el servicio ChromeDriver especificando la ruta correcta
+    chromedriver_path = "/app/chromedriver"
+    os.chmod(chromedriver_path, 0o755)  # Cambia los permisos para asegurarse de que es ejecutable
+    service = Service(executable_path=chromedriver_path)
 
-    # Crea una instancia del controlador Chrome remoto
-    driver = webdriver.Chrome(service=service, options=options)
+    # Crea una instancia del controlador Chrome con las opciones configuradas
+    driver = webdriver.Chrome(service=service, options=chrome_options)
 
     # Abre una página web en el navegador
     cadena_previa = 'https://www.airbnb.es/s/'
@@ -27,7 +32,7 @@ def obtener_datos_airbnb(consulta):
     enlace = cadena_previa + consulta + cadena_siguiente
     driver.get(enlace)
 
-    # Espera 5 segundos
+    # Espera 5 segundos para que la página cargue completamente
     time.sleep(5)
 
     # Extraer los datos de los resultados
@@ -45,7 +50,6 @@ def obtener_datos_airbnb(consulta):
         if 'noche' in precio.text:
             precio_hotel = precio.text
             precios_hoteles.append(precio_hotel)
-            print(precio_hotel)
 
     datos = list(zip(hoteles, precios_hoteles))
 
@@ -65,13 +69,3 @@ def index():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-# para precios
-#<span class="a8jt5op atm_3f_idpfg4 atm_7h_hxbz6r atm_7i_ysn8ba atm_e2_t94yts atm_ks_zryt35 atm_l8_idpfg4 atm_mk_stnw88 atm_vv_1q9ccgz atm_vy_t94yts dir dir-ltr">67&nbsp;€ por noche, inicialmente 79&nbsp;€</span>
-
-
-
-
-
-
-    
