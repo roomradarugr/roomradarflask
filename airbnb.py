@@ -3,20 +3,21 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait  # Correct import
+from selenium.webdriver.support import expected_conditions as EC
 import os
 import time
 
-
 app = Flask(__name__)
 
-def obtener_datos_airbnb(consulta):
+def obtener_datos_google_travel(consulta):
     # Configura las opciones de Chrome para Heroku
-    chrome_options = Options()
-    chrome_options.binary_location = "/app/google-chrome"
-    chrome_options.add_argument("--headless")  # Ejecuta Chrome en modo sin cabeza
-    chrome_options.add_argument("--disable-gpu")  # Deshabilita la aceleración por GPU
-    chrome_options.add_argument("--no-sandbox")  # Desactiva el modo sandbox por seguridad
-    chrome_options.add_argument("--disable-dev-shm-usage")  # Soluciona problemas de espacio limitado en /dev/shm
+    options = Options()
+    options.binary_location = "/app/google-chrome"
+    options.add_argument("--headless")  # Ejecuta Chrome en modo sin cabeza
+    options.add_argument("--disable-gpu")  # Deshabilita la aceleración por GPU
+    options.add_argument("--no-sandbox")  # Deshabilita el modo sandbox por seguridad
+    options.add_argument("--disable-dev-shm-usage")  # Mejora el manejo de memoria en contenedores
 
     # Inicializa el servicio ChromeDriver especificando la ruta correcta
     chromedriver_path = "/app/chromedriver"
@@ -24,20 +25,21 @@ def obtener_datos_airbnb(consulta):
     service = Service(executable_path=chromedriver_path)
 
     # Crea una instancia del controlador Chrome con las opciones configuradas
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(service=service, options=options)
 
-    # Abre una página web en el navegador
-    cadena_previa = 'https://www.airbnb.es/s/'
-    cadena_siguiente = '/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&monthly_start_date=2024-06-01&monthly_length=3&monthly_end_date=2024-09-01&price_filter_input_type=0&channel=EXPLORE&date_picker_type=calendar&source=structured_search_input_header&search_type=filter_change'
-    enlace = cadena_previa + consulta + cadena_siguiente
-    driver.get(enlace)
+    # Construye la URL de Google Travel con la consulta del usuario
+    url = f"https://www.google.com/travel/hotels?q={consulta}"
+    driver.get(url)
 
-    # Espera 5 segundos para que la página cargue completamente
-    time.sleep(5)
+    # Espera a que la página se cargue completamente
+    WebDriverWait(driver, 20).until(
+        EC.visibility_of_element_located((By.XPATH, '//h2[@class="BgYkof ogfYpf ykx2he"]'))
+    )
 
     # Extraer los datos de los resultados
-    resultados = driver.find_elements(By.XPATH, '//span[@data-testid="listing-card-name"]')
-    precios = driver.find_elements(By.XPATH, '//span[@class="a8jt5op atm_3f_idpfg4 atm_7h_hxbz6r atm_7i_ysn8ba atm_e2_t94yts atm_ks_zryt35 atm_l8_idpfg4 atm_mk_stnw88 atm_vv_1q9ccgz atm_vy_t94yts dir dir-ltr"]')
+    resultados = driver.find_elements(By.XPATH, '//h2[@class="BgYkof ogfYpf ykx2he"]')
+    precios = driver.find_elements(By.XPATH, '//span[@class="kixHKb flySGb"]')
+    
     datos = []
     hoteles = []
     precios_hoteles = []
@@ -45,16 +47,17 @@ def obtener_datos_airbnb(consulta):
     for resultado in resultados:
         nombre_hotel = resultado.text
         hoteles.append(nombre_hotel)
+        print(nombre_hotel)
 
     for precio in precios:
-        if 'noche' in precio.text:
-            precio_hotel = precio.text
+        precio_hotel = precio.text
+        if precio_hotel.strip():
             precios_hoteles.append(precio_hotel)
+            print(precio_hotel)
 
     datos = list(zip(hoteles, precios_hoteles))
 
-    # Cerrar el navegador
-    driver.quit()
+    driver.quit()  # Cierra el navegador
 
     return datos
 
@@ -63,7 +66,7 @@ def obtener_datos_airbnb(consulta):
 def index():
     if request.method == "POST":
         consulta = request.form["consulta"]
-        datos = obtener_datos_airbnb(consulta)
+        datos = obtener_datos_google_travel(consulta)
         return render_template("resultado.html", datos=datos)
     return render_template("index.html")
 
